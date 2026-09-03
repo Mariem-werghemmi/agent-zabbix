@@ -1,0 +1,27 @@
+# =====================================================================
+# Service systemd : surveillance continue (mode --watch)
+# =====================================================================
+# C'est la methode de traitement "temps reel" la plus simple : l'agent
+# scrute Zabbix toutes les POLL_INTERVAL secondes (60 par defaut) et
+# traite les nouvelles alertes. Aucune configuration cote Zabbix requise,
+# et cela fonctionne naturellement entre les deux VMs.
+#
+# Tant que DRY_RUN=true dans .env, le service ne fait que PROPOSER les
+# actions (rien n'est ecrit dans Zabbix). Passer DRY_RUN=false seulement
+# apres validation du comportement.
+# =====================================================================
+[Unit]
+Description=Agent IA Zabbix - surveillance continue
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mariem
+WorkingDirectory=/home/mariem/agent-zabbix
+ExecStart=/home/mariem/agent-zabbix/venv/bin/python3 cli.py --watch
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

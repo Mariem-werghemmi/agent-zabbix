@@ -1,0 +1,18 @@
+# =====================================================================
+# Service systemd : console web de l'agent (FastAPI)
+# =====================================================================
+[Unit]
+Description=Agent IA Zabbix - console web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mariem
+WorkingDirectory=/home/mariem/agent-zabbix
+ExecStart=/home/mariem/agent-zabbix/venv/bin/python3 web.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
