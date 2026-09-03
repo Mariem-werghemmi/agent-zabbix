@@ -1,0 +1,46 @@
+# ============================================================
+# Secrets & configuration locale -- NE JAMAIS versionner
+# ============================================================
+.env
+*.key
+*.pem
+cosign.key
+
+# ============================================================
+# Donnees generees a l'execution
+# ============================================================
+data/*.db
+data/*.sqlite
+data/*.log
+data/evaluation.csv
+
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# Outils / caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ============================================================
+# Editeurs / OS
+# ============================================================
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
