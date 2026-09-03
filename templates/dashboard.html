@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent IA — Supervision Zabbix N1</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+<div class="brand">
+<h1>Agent IA — Supervision Zabbix</h1>
+<span class="subtitle">Niveau 1 · tri, diagnostic, acquittement ou escalade</span>
+</div>
+<div class="status-group">
+{% if settings.dry_run %}
+<span class="badge badge-dry">Mode simulation (dry-run)</span>
+{% else %}
+<span class="badge badge-live">Mode autonome</span>
+{% endif %}
+{% if etat_zabbix.ok %}
+<span class="badge badge-ok">Zabbix {{ etat_zabbix.version }}</span>
+{% else %}
+<span class="badge badge-err" title="{{ etat_zabbix.error }}">Zabbix hors ligne</span>
+{% endif %}
+<span class="badge badge-neutral">{{ settings.llm_model }}</span>
+</div>
+</header>
+<main class="wrap">
+<!-- ================= STATISTIQUES ================= -->
+<section class="stats">
+<div class="stat">
+<span class="stat-value">{{ stats.total }}</span>
+<span class="stat-label">Décisions traitées</span>
+</div>
+<div class="stat">
+<span class="stat-value stat-ack">{{ stats.acknowledged }}</span>
+<span class="stat-label">Acquittées</span>
+</div>
+<div class="stat">
+<span class="stat-value stat-esc">{{ stats.escalated }}</span>
+<span class="stat-label">Escaladées</span>
+</div>
+<div class="stat">
+<span class="stat-value">{{ stats.ack_rate }}<small>%</small></span>
+<span class="stat-label">Taux d'acquittement</span>
+</div>
+<div class="stat">
+<span class="stat-value">{{ stats.avg_duration_s }}<small>s</small></span>
+<span class="stat-label">Temps moyen</span>
+</div>
+<div class="stat">
+<span class="stat-value">{{ stats.avg_confidence }}</span>
+<span class="stat-label">Confiance moyenne</span>
+</div>
+</section>
+<!-- ================= ALERTES ACTIVES ================= -->
+<section class="panel">
+<div class="panel-head">
+<h2>Alertes actives dans Zabbix</h2>
+<button class="btn btn-ghost" onclick="location.reload()">Actualiser</button>
+</div>
+{% if not etat_zabbix.ok %}
+<p class="empty error">
+Connexion à Zabbix impossible : {{ etat_zabbix.error }}<br>
+Vérifier <code>ZABBIX_URL</code> et <code>ZABBIX_TOKEN</code> dans le fichier <code>.env</code>.
+</p>
+{% elif not alertes %}
+<p class="empty">Aucune alerte active. La supervision est au calme.</p>
+{% else %}
+<div class="tablewrap">
+<table>
+<thead>
+<tr>
+<th>Sévérité</th>
+<th>Hôte</th>
+<th>Problème</th>
+<th>Event ID</th>
+<th>État</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+{% for alerte in alertes %}
+<tr>
+<td><span class="sev sev-{{ alerte.severity }}">{{ alerte.severity_label }}</span></td>
+<td class="mono">{{ alerte.hostname }}</td>
+<td>{{ alerte.name }}</td>
+<td class="mono dim">{{ alerte.eventid }}</td>
+<td>
+{% if alerte.deja_traite %}
+<span class="tag tag-done">Traitée</span>
+{% else %}
+<span class="tag tag-new">Nouvelle</span>
+{% endif %}
+</td>
+<td class="right">
+<button class="btn btn-primary"
+onclick="analyser('{{ alerte.eventid }}', this)">Analyser</button>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+</section>
+<!-- ================= RÉSULTAT DE L'ANALYSE ================= -->
+<section class="panel hidden" id="resultat">
+<div class="panel-head">
+<h2>Raisonnement de l'agent</h2>
+<button class="btn btn-ghost" onclick="fermerResultat()">Fermer</button>
+</div>
+<div id="resultat-contenu"></div>
+</section>
+<!-- ================= HISTORIQUE ================= -->
+<section class="panel">
+<div class="panel-head">
+<h2>Journal des décisions</h2>
+<span class="dim">{{ decisions|length }} dernière(s) décision(s)</span>
+</div>
+{% if not decisions %}
+<p class="empty">Aucune décision enregistrée. Lancez une analyse ci-dessus.</p>
+{% else %}
+<div class="tablewrap">
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Hôte</th>
+<th>Problème</th>
+<th>Famille</th>
+<th>Décision</th>
+<th>Confiance</th>
+<th>Durée</th>
+<th>Mode</th>
+</tr>
+</thead>
+<tbody>
+{% for d in decisions %}
+<tr class="clickable" onclick="voirDecision({{ d.id }})">
+<td class="mono dim">{{ d.created_at[:16].replace('T', ' ') }}</td>
+<td class="mono">{{ d.hostname }}</td>
+<td class="truncate" title="{{ d.problem_name }}">{{ d.problem_name }}</td>
+<td><span class="tag tag-family">{{ d.family }}</span></td>
+<td>
+{% if d.action == 'ACKNOWLEDGE' %}
+<span class="decision decision-ack">Acquittée</span>
+{% else %}
+<span class="decision decision-esc">Escaladée</span>
+{% endif %}
+</td>
+<td class="mono">{{ '%.0f'|format(d.confidence * 100) }}%</td>
+<td class="mono dim">{{ (d.duration_ms / 1000)|round(1) }}s</td>
+<td>
+{% if d.dry_run %}
+<span class="tag tag-dry">simulation</span>
+{% else %}
+<span class="tag tag-live">réel</span>
+{% endif %}
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+</section>
+</main>
+<footer class="footer">
+Agent IA de supervision Zabbix N1 — stage Next Step IT ·
+Seuil d'acquittement automatique : sévérité ≤ {{ settings.max_auto_ack_severity }}
+</footer>
+<script>
+// ---------------------------------------------------------------------------
+// Lance l'agent sur une alerte et affiche sa trace de raisonnement.
+// ---------------------------------------------------------------------------
+async function analyser(eventid, bouton) {
+    const panneau = document.getElementById('resultat');
+    const contenu = document.getElementById('resultat-contenu');
+    const original = bouton.textContent;
+    bouton.disabled = true;
+    bouton.textContent = 'Analyse…';
+    panneau.classList.remove('hidden');
+    contenu.innerHTML = '<p class="loading">L\'agent raisonne, veuillez patienter…</p>';
+    panneau.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    try {
+        const reponse = await fetch('/api/analyser/' + eventid, { method: 'POST' });
+        const resultat = await reponse.json();
+        if (!reponse.ok) {
+            contenu.innerHTML = '<p class="empty error">Erreur : ' + escapeHtml(resultat.error) + '</p>';
+            return;
+        }
+        contenu.innerHTML = rendreResultat(resultat);
+    } catch (erreur) {
+        contenu.innerHTML = '<p class="empty error">Erreur réseau : ' + escapeHtml(erreur.message) + '</p>';
+    } finally {
+        bouton.disabled = false;
+        bouton.textContent = original;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Construit l'affichage de la décision et de la trace ReAct.
+// ---------------------------------------------------------------------------
+function rendreResultat(r) {
+    const estAck = r.action === 'ACKNOWLEDGE';
+    const classe = estAck ? 'decision-ack' : 'decision-esc';
+    const libelle = estAck ? 'ACQUITTÉE' : 'ESCALADÉE VERS LE N2';
+    let html = `
+        <div class="verdict ${classe}">
+            <div class="verdict-head">
+                <span class="verdict-action">${libelle}</span>
+                ${r.dry_run
+                    ? '<span class="tag tag-dry">simulation — aucune écriture dans Zabbix</span>'
+                    : '<span class="tag tag-live">action réelle</span>'}
+            </div>
+            <p class="verdict-message">${escapeHtml(r.message)}</p>
+            <div class="verdict-meta">
+                <span><strong>Hôte</strong> ${escapeHtml(r.hostname)}</span>
+                <span><strong>Famille</strong> ${escapeHtml(r.family)}</span>
+                <span><strong>Confiance</strong> ${Math.round(r.confidence * 100)}%</span>
+                <span><strong>Étapes</strong> ${r.steps}</span>
+                <span><strong>Durée</strong> ${(r.duration_ms / 1000).toFixed(1)}s</span>
+            </div>
+        </div>
+        <h3 class="trace-title">Trace du raisonnement (boucle ReAct)</h3>
+        <ol class="trace">`;
+
+    for (const etape of r.trace) {
+        if (etape.type === 'pensee') {
+            html += `<li class="trace-item trace-pensee">
+                <span class="trace-label">Pensée</span>
+                <div class="trace-body">${escapeHtml(etape.contenu)}</div>
+            </li>`;
+        } else if (etape.type === 'action') {
+            html += `<li class="trace-item trace-action">
+                <span class="trace-label">Action</span>
+                <div class="trace-body mono">${escapeHtml(etape.outil)}(${escapeHtml(JSON.stringify(etape.arguments))})</div>
+            </li>`;
+        } else if (etape.type === 'observation') {
+            html += `<li class="trace-item trace-observation">
+                <span class="trace-label">Observation</span>
+                <div class="trace-body mono small">${escapeHtml(JSON.stringify(etape.resultat, null, 1))}</div>
+            </li>`;
+        } else if (etape.type === 'erreur') {
+            html += `<li class="trace-item trace-erreur">
+                <span class="trace-label">Erreur</span>
+                <div class="trace-body">${escapeHtml(etape.contenu)}</div>
+            </li>`;
+        }
+    }
+
+    html += '</ol><p class="dim">Rechargez la page pour voir cette décision dans le journal.</p>';
+    return html;
+}
+
+// ---------------------------------------------------------------------------
+async function voirDecision(id) {
+    const reponse = await fetch('/api/decision/' + id);
+    const d = await reponse.json();
+    const panneau = document.getElementById('resultat');
+    const contenu = document.getElementById('resultat-contenu');
+    const estAck = d.action === 'ACKNOWLEDGE';
+    contenu.innerHTML = `
+        <div class="verdict ${estAck ? 'decision-ack' : 'decision-esc'}">
+            <div class="verdict-head">
+                <span class="verdict-action">${estAck ? 'ACQUITTÉE' : 'ESCALADÉE VERS LE N2'}</span>
+                <span class="tag ${d.dry_run ? 'tag-dry' : 'tag-live'}">${d.dry_run ? 'simulation' : 'action réelle'}</span>
+            </div>
+            <p class="verdict-message">${escapeHtml(d.message)}</p>
+            <div class="verdict-meta">
+                <span><strong>Hôte</strong> ${escapeHtml(d.hostname)}</span>
+                <span><strong>Problème</strong> ${escapeHtml(d.problem_name)}</span>
+                <span><strong>Modèle</strong> ${escapeHtml(d.llm_model)}</span>
+                <span><strong>Date</strong> ${escapeHtml(d.created_at)}</span>
+            </div>
+        </div>
+        <h3 class="trace-title">Justification</h3>
+        <p>${escapeHtml(d.reasoning)}</p>`;
+    panneau.classList.remove('hidden');
+    panneau.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function fermerResultat() {
+    document.getElementById('resultat').classList.add('hidden');
+}
+
+function escapeHtml(texte) {
+    const div = document.createElement('div');
+    div.textContent = texte === undefined || texte === null ? '' : String(texte);
+    return div.innerHTML;
+}
+</script>
+</body>
+</html>
