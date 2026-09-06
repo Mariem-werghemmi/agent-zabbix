@@ -1,11 +1,12 @@
 """
 config.py -- Lecture centralisee de la configuration.
 """
-
 from pathlib import Path
-
+from dotenv import load_dotenv
+load_dotenv()   # charge .env dans os.environ, AVANT tout le reste
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
+from core.secrets import load_secrets_into_env
+load_secrets_into_env()  # avant la lecture Pydantic
 BASE_DIR = Path(__file__).resolve().parent
 
 
