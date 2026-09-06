@@ -1,0 +1,17 @@
+# Ne PAS envoyer au contexte de build (plus rapide + evite les fuites)
+.git
+.github
+.gitignore
+.env
+*.md
+docs/
+deploy/
+tests/
+**/__pycache__
+*.pyc
+.venv
+venv
+data/*.db
+data/*.log
+data/*.csv
+.pytest_cache

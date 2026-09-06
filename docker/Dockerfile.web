@@ -1,0 +1,38 @@
+# =====================================================================
+# Image de la CONSOLE WEB (service agent-web : web.py / FastAPI)
+# Build depuis la RACINE du projet :
+#   docker build -f docker/Dockerfile.web -t agent-zabbix-web .
+#
+# Memes bonnes pratiques que l'agent. Expose le port de la console (8000).
+# =====================================================================
+FROM python:3.12-slim AS build
+WORKDIR /install
+COPY requirements.txt .
+RUN python -m venv /venv \
+    && /venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /venv/bin/pip install --no-cache-dir -r requirements.txt
+
+FROM python:3.12-slim AS runtime
+
+RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin appuser
+
+WORKDIR /app
+COPY --from=build /venv /venv
+COPY . /app
+
+RUN mkdir -p /app/data && chown -R 10001:10001 /app/data
+
+ENV PATH="/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    WEB_HOST=0.0.0.0 \
+    WEB_PORT=8000
+
+USER 10001
+EXPOSE 8000
+
+# Healthcheck : la console repond-elle sur son port ?
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/').status==200 else 1)"
+
+CMD ["python", "web.py"]

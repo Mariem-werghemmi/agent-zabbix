@@ -1,0 +1,52 @@
+# =====================================================================
+# Orchestration des deux services : l'agent (watch) et la console web.
+# Le serveur Zabbix est EXTERNE (autre VM) : il n'est PAS dans ce compose.
+# Sa connexion vient du .env (ZABBIX_URL, ZABBIX_TOKEN...).
+#
+#   cp .env.example .env   # puis remplir
+#   docker compose up -d --build
+#   docker compose logs -f
+# =====================================================================
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent
+    image: agent-zabbix-agent:latest
+    container_name: agent-zabbix-agent
+    restart: unless-stopped
+    # Toute la config (secrets + URL Zabbix externe) vient du .env.
+    env_file: [.env]
+    environment:
+      # Chemins internes au conteneur (coherents avec le volume ci-dessous).
+      DB_PATH: data/agent.db
+      LOG_PATH: data/agent.log
+    volumes:
+      # Persistance de la base SQLite et des logs hors du conteneur.
+      - agent-data:/app/data
+    # Acces au serveur Zabbix d'une AUTRE VM : rien a ouvrir cote compose,
+    # l'agent sort par le reseau de l'hote (ZABBIX_URL pointe vers l'IP de la VM 1).
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    image: agent-zabbix-web:latest
+    container_name: agent-zabbix-web
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      DB_PATH: data/agent.db
+      LOG_PATH: data/agent.log
+      WEB_HOST: 0.0.0.0
+      WEB_PORT: 8000
+    ports:
+      - "8000:8000"  # console web accessible sur http://<IP-hote>:8000
+    volumes:
+      # MEME volume que l'agent : la console lit le journal ecrit par l'agent.
+      - agent-data:/app/data
+    depends_on:
+      - agent
+
+volumes:
+  agent-data:  # volume nomme, persiste entre les redemarrages
