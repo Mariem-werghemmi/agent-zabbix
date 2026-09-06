@@ -2,10 +2,12 @@
 > Un agent d'intelligence artificielle qui **trie, diagnostique et traite
 > automatiquement** les alertes routinières de supervision Zabbix, pour soulager
 > les opérateurs de niveau 1 — sans jamais masquer un incident réel.
+![CI](https://github.com/Mariem-werghemmi/agent-zabbix/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
 ![Zabbix](https://img.shields.io/badge/Zabbix-7.0-red)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%2F%20Llama%203.3-0E6E6C)
 ![License](https://img.shields.io/badge/License-MIT-green)
+![Security](https://img.shields.io/badge/Security-Trivy%20%7C%20Bandit%20%7C%20Gitleaks-0E6E6C)
 Projet réalisé lors d'un stage chez **Next Step IT**. L'agent réduit le *bruit
 d'alertes* (« alert fatigue ») en prenant en charge les cas connus, tout en
 escaladant vers un humain toute situation incertaine.
@@ -106,6 +108,24 @@ agent-zabbix/
 ├── SECURITY.md # garde-fous & modèle de menaces
 └── requirements.txt
 ```
+---
+
+## 🐳 Conteneurisation & CI/CD
+
+L'agent et la console sont conteneurisés (Docker multi-stage, utilisateurs non-root, healthchecks) et orchestrés via `docker-compose`. Le serveur Zabbix reste externe (autre VM), sa configuration vient du `.env`.
+
+```bash
+cp .env.example .env   # remplir
+docker compose up -d --build
+docker compose ps      # les 2 services "healthy"
+```
+
+Un pipeline GitHub Actions (`.github/workflows/ci.yml`) exécute à chaque push :
+secrets (Gitleaks) → SAST (Bandit) → SCA (pip-audit) → tests (pytest) → build → scan d'image (Trivy).
+
+**Gestion des secrets** : backend Vault optionnel (`SECRETS_BACKEND=vault`), rétro-compatible avec `.env` par défaut.
+
+**Tests** : 7 tests ciblés sur les garde-fous, dont la résistance à l'injection de prompt (`tests/test_prompt_injection.py`) — la preuve que le code, pas le prompt, garde le contrôle final.
 ---
 ## ⚠️ Limites honnêtes
 - **Périmètre niveau 1 uniquement** : l'agent ne réalise aucun diagnostic
