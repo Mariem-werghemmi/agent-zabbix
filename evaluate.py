@@ -141,16 +141,10 @@ def stats(family: str | None = None) -> None:
     args = (family,) if family else ()
 
     # --- Taux global ------------------------------------------------------
-    row = conn.execute(
-        f"""
-        SELECT COUNT(*) AS n, COALESCE(SUM(e.correct), 0) AS ok
-        FROM evaluations e
-        JOIN decisions d ON d.id = e.decision_id
-        {filtre}
-        """,
-        args,
-    ).fetchone()
-
+    # Filtre construit en interne (2 valeurs fixes possibles), jamais depuis une
+    # entree utilisateur brute. Valeurs reelles passees via args (requete parametree).
+    query = f"SELECT COUNT(*) AS n, COALESCE(SUM(e.correct), 0) AS ok FROM evaluations e JOIN decisions d ON d.id = e.decision_id {filtre}"  # nosec B608
+    row = conn.execute(query, args).fetchone()
     total, ok = row["n"], row["ok"]
     if total == 0:
         print("Aucune decision evaluee pour ce filtre. Lance d'abord --annotate.")

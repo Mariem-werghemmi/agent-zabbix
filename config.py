@@ -44,7 +44,8 @@ class Settings(BaseSettings):
     poll_interval: int = 60
     db_path: str = "data/agent.db"
     log_path: str = "data/agent.log"
-    web_host: str = "0.0.0.0"
+    # Ecoute volontairement sur toutes les interfaces : acces prevu via docker-compose.
+    web_host: str = "0.0.0.0"  # nosec B104
     web_port: int = 8000
 
     @property
