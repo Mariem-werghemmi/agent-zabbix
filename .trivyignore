@@ -1,0 +1,8 @@
+# Ces 2 CVE sont detectees dans les fichiers de licence internes de pip
+# (pip-*.dist-info/licenses/src/pip/_vendor/...), pas dans du code Python
+# reellement execute. msgpack et setuptools vendus par pip en interne ne
+# sont jamais importes ni utilises par le code applicatif de ce projet.
+# Verifie le 2026-09-07 : aucun fichier .py, uniquement des textes de
+# licence (COPYING/LICENSE).
+GHSA-6v7p-g79w-8964
+CVE-2025-47273
